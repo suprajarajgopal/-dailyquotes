@@ -1,452 +1,18 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>DailyMind – Your Quote Companion</title>
-<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet" />
-<style>
-  /* ── RESET & ROOT ── */
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+// ═══════════════════════════════════════════════════════════════
+// DAILYMIND - AUTOMATED QUOTE EMAIL SYSTEM
+// ═══════════════════════════════════════════════════════════════
+// This script sends personalized quote emails to subscribers based on
+// their preferences collected via Google Forms
+// ═══════════════════════════════════════════════════════════════
 
-  :root {
-    --bg:        #0d0d0d;
-    --surface:   #161616;
-    --card:      #1e1e1e;
-    --border:    #2a2a2a;
-    --gold:      #c9a84c;
-    --gold-dim:  #8a6e2f;
-    --text:      #e8e0d0;
-    --muted:     #7a7268;
-    --accent:    #e8c97a;
-    --danger:    #c0392b;
-    --radius:    16px;
-    --font-quote: 'Cormorant Garamond', Georgia, serif;
-    --font-ui:    'DM Sans', sans-serif;
+// CONFIGURATION - Edit these values
+const FORM_RESPONSES_SHEET_NAME = "Form Responses 1"; // Default Google Forms response sheet name
+const YOUR_EMAIL = "your-email@gmail.com"; // Your email (for testing)
 
-    /* User-customisable (JS writes these) */
-    --widget-bg:      #1e1e1e;
-    --widget-radius:  20px;
-    --widget-font-sz: 1.6rem;
-    --widget-color:   #e8e0d0;
-  }
+// ═══════════════════════════════════════════════════════════════
+// QUOTE DATABASE
+// ═══════════════════════════════════════════════════════════════
 
-  body {
-    font-family: var(--font-ui);
-    background: var(--bg);
-    color: var(--text);
-    min-height: 100vh;
-    overflow-x: hidden;
-  }
-
-  /* ── GRAIN OVERLAY ── */
-  body::before {
-    content: '';
-    position: fixed; inset: 0;
-    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
-    pointer-events: none; z-index: 1000; opacity: 0.5;
-  }
-
-  /* ── NAV ── */
-  nav {
-    display: flex; align-items: center; justify-content: space-between;
-    padding: 1.2rem 2rem;
-    border-bottom: 1px solid var(--border);
-    position: sticky; top: 0; z-index: 50;
-    background: rgba(13,13,13,0.85);
-    backdrop-filter: blur(12px);
-  }
-  .logo {
-    font-family: var(--font-quote);
-    font-size: 1.5rem; font-weight: 600; letter-spacing: 0.04em;
-    color: var(--gold);
-  }
-  .logo span { color: var(--text); font-weight: 300; }
-  .nav-tabs { display: flex; gap: 0.25rem; }
-  .tab-btn {
-    background: none; border: none; cursor: pointer;
-    font-family: var(--font-ui); font-size: 0.8rem; font-weight: 500;
-    color: var(--muted); padding: 0.5rem 1rem; border-radius: 8px;
-    transition: all 0.2s; letter-spacing: 0.06em; text-transform: uppercase;
-  }
-  .tab-btn:hover { color: var(--text); background: var(--border); }
-  .tab-btn.active { color: var(--gold); background: rgba(201,168,76,0.1); }
-
-  /* ── PAGES ── */
-  .page { display: none; padding: 2.5rem 2rem; max-width: 720px; margin: 0 auto; }
-  .page.active { display: block; animation: fadeUp 0.4s ease; }
-  @keyframes fadeUp {
-    from { opacity: 0; transform: translateY(18px); }
-    to   { opacity: 1; transform: translateY(0); }
-  }
-
-  /* ── HOME PAGE – WIDGET ── */
-  .widget-wrap {
-    display: flex; justify-content: center; margin: 2rem 0 3rem;
-  }
-  .quote-widget {
-    background: var(--widget-bg);
-    border-radius: var(--widget-radius);
-    padding: 2.8rem 2.4rem;
-    width: 100%; max-width: 540px;
-    border: 1px solid rgba(201,168,76,0.15);
-    box-shadow: 0 8px 60px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.03);
-    position: relative; overflow: hidden;
-    transition: all 0.4s ease;
-  }
-  .quote-widget::before {
-    content: '\201C';
-    position: absolute; top: -0.5rem; left: 1.2rem;
-    font-family: var(--font-quote);
-    font-size: 8rem; line-height: 1;
-    color: var(--gold); opacity: 0.12;
-    pointer-events: none;
-  }
-  .quote-text {
-    font-family: var(--font-quote);
-    font-size: var(--widget-font-sz);
-    font-style: italic; font-weight: 300; line-height: 1.55;
-    color: var(--widget-color);
-    margin-bottom: 1.4rem;
-    transition: opacity 0.4s ease;
-  }
-  .quote-author {
-    font-size: 0.78rem; font-weight: 500; letter-spacing: 0.12em;
-    text-transform: uppercase; color: var(--gold-dim);
-  }
-  .quote-source-tag {
-    position: absolute; top: 1rem; right: 1rem;
-    font-size: 0.65rem; letter-spacing: 0.1em; text-transform: uppercase;
-    color: var(--muted); border: 1px solid var(--border);
-    padding: 0.2rem 0.6rem; border-radius: 20px;
-  }
-  .widget-controls {
-    display: flex; gap: 0.75rem; justify-content: center; flex-wrap: wrap;
-  }
-  .btn {
-    display: inline-flex; align-items: center; gap: 0.4rem;
-    padding: 0.6rem 1.3rem; border-radius: 10px;
-    font-family: var(--font-ui); font-size: 0.82rem; font-weight: 500;
-    cursor: pointer; border: none; transition: all 0.2s;
-    letter-spacing: 0.03em;
-  }
-  .btn-primary { background: var(--gold); color: #0d0d0d; }
-  .btn-primary:hover { background: var(--accent); transform: translateY(-1px); }
-  .btn-ghost {
-    background: transparent; color: var(--muted);
-    border: 1px solid var(--border);
-  }
-  .btn-ghost:hover { color: var(--text); border-color: var(--muted); }
-  .btn-danger { background: var(--danger); color: #fff; }
-  .btn-danger:hover { opacity: 0.85; }
-
-  /* next-quote timer */
-  .timer-strip {
-    text-align: center; margin: 1.5rem 0 0.5rem;
-    font-size: 0.75rem; color: var(--muted); letter-spacing: 0.05em;
-  }
-  .timer-strip span { color: var(--gold-dim); font-weight: 500; }
-
-  /* ── SECTION TITLE ── */
-  .section-title {
-    font-family: var(--font-quote);
-    font-size: 1.8rem; font-weight: 400; margin-bottom: 0.3rem;
-    letter-spacing: 0.02em;
-  }
-  .section-sub { font-size: 0.82rem; color: var(--muted); margin-bottom: 2rem; }
-
-  /* ── SETTINGS PAGE ── */
-  .settings-group {
-    background: var(--card); border: 1px solid var(--border);
-    border-radius: var(--radius); padding: 1.6rem; margin-bottom: 1.2rem;
-  }
-  .settings-group h3 {
-    font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.12em;
-    color: var(--gold-dim); margin-bottom: 1.2rem; font-weight: 500;
-  }
-  .setting-row {
-    display: flex; align-items: center; justify-content: space-between;
-    margin-bottom: 1.1rem; gap: 1rem;
-  }
-  .setting-row:last-child { margin-bottom: 0; }
-  .setting-label { font-size: 0.88rem; color: var(--text); }
-  .setting-label small { display: block; font-size: 0.73rem; color: var(--muted); margin-top: 0.15rem; }
-
-  input[type=range] {
-    -webkit-appearance: none; appearance: none;
-    width: 160px; height: 4px;
-    background: var(--border); border-radius: 2px; cursor: pointer;
-  }
-  input[type=range]::-webkit-slider-thumb {
-    -webkit-appearance: none; appearance: none;
-    width: 16px; height: 16px; border-radius: 50%;
-    background: var(--gold); border: 2px solid var(--bg);
-  }
-  select, input[type=color] {
-    background: var(--surface); color: var(--text);
-    border: 1px solid var(--border); border-radius: 8px;
-    padding: 0.4rem 0.7rem; font-family: var(--font-ui); font-size: 0.83rem;
-    cursor: pointer;
-  }
-  input[type=color] { padding: 0.1rem; width: 42px; height: 32px; }
-
-  .toggle {
-    position: relative; display: inline-block; width: 44px; height: 24px;
-  }
-  .toggle input { opacity: 0; width: 0; height: 0; }
-  .toggle-slider {
-    position: absolute; inset: 0; background: var(--border);
-    border-radius: 24px; cursor: pointer; transition: 0.3s;
-  }
-  .toggle-slider::before {
-    content: ''; position: absolute;
-    width: 18px; height: 18px; border-radius: 50%;
-    background: #fff; left: 3px; top: 3px; transition: 0.3s;
-  }
-  .toggle input:checked + .toggle-slider { background: var(--gold); }
-  .toggle input:checked + .toggle-slider::before { transform: translateX(20px); }
-
-  /* ── MY QUOTES ── */
-  .add-quote-form {
-    background: var(--card); border: 1px solid var(--border);
-    border-radius: var(--radius); padding: 1.5rem; margin-bottom: 1.5rem;
-  }
-  .form-row { margin-bottom: 1rem; }
-  .form-row:last-child { margin-bottom: 0; }
-  label { display: block; font-size: 0.75rem; letter-spacing: 0.08em;
-    text-transform: uppercase; color: var(--muted); margin-bottom: 0.4rem; }
-  textarea, input[type=text] {
-    width: 100%; background: var(--surface); color: var(--text);
-    border: 1px solid var(--border); border-radius: 10px;
-    padding: 0.75rem 1rem; font-family: var(--font-quote);
-    font-size: 1rem; resize: vertical; outline: none;
-    transition: border-color 0.2s;
-  }
-  textarea:focus, input[type=text]:focus { border-color: var(--gold-dim); }
-  textarea { min-height: 90px; }
-
-  .quotes-list { display: flex; flex-direction: column; gap: 0.9rem; }
-  .quote-card {
-    background: var(--card); border: 1px solid var(--border);
-    border-radius: var(--radius); padding: 1.2rem 1.4rem;
-    display: flex; align-items: flex-start; gap: 1rem;
-    transition: border-color 0.2s;
-  }
-  .quote-card:hover { border-color: var(--border); }
-  .quote-card-body { flex: 1; }
-  .quote-card-text {
-    font-family: var(--font-quote); font-style: italic;
-    font-size: 1.05rem; line-height: 1.5; color: var(--text); margin-bottom: 0.3rem;
-  }
-  .quote-card-author { font-size: 0.75rem; color: var(--gold-dim); letter-spacing: 0.08em; }
-  .quote-card-actions { display: flex; gap: 0.4rem; flex-shrink: 0; }
-  .icon-btn {
-    background: none; border: 1px solid var(--border); border-radius: 8px;
-    width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;
-    cursor: pointer; color: var(--muted); transition: all 0.2s; font-size: 0.85rem;
-  }
-  .icon-btn:hover { color: var(--danger); border-color: var(--danger); }
-  .empty-state {
-    text-align: center; padding: 3rem 1rem; color: var(--muted); font-size: 0.88rem;
-  }
-  .empty-state .big { font-size: 2.5rem; margin-bottom: 0.8rem; }
-
-  /* ── GITA PAGE ── */
-  .search-bar {
-    display: flex; gap: 0.75rem; margin-bottom: 1.5rem;
-  }
-  .search-bar input[type=text] {
-    flex: 1; font-family: var(--font-ui);
-  }
-  .gita-grid { display: flex; flex-direction: column; gap: 0.9rem; }
-  .gita-card {
-    background: var(--card); border: 1px solid var(--border);
-    border-radius: var(--radius); padding: 1.2rem 1.4rem;
-    transition: border-color 0.2s; cursor: default;
-  }
-  .gita-card:hover { border-color: var(--gold-dim); }
-  .gita-card-text {
-    font-family: var(--font-quote); font-style: italic;
-    font-size: 1.05rem; line-height: 1.5; color: var(--text); margin-bottom: 0.5rem;
-  }
-  .gita-card-meta {
-    display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.5rem;
-  }
-  .gita-card-ref { font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--gold-dim); }
-  .use-btn {
-    font-size: 0.72rem; padding: 0.25rem 0.7rem; border-radius: 6px;
-    background: rgba(201,168,76,0.1); color: var(--gold);
-    border: 1px solid rgba(201,168,76,0.2); cursor: pointer;
-    transition: all 0.2s;
-  }
-  .use-btn:hover { background: rgba(201,168,76,0.2); }
-
-  /* ── TOAST ── */
-  #toast {
-    position: fixed; bottom: 2rem; left: 50%; transform: translateX(-50%) translateY(20px);
-    background: var(--gold); color: #0d0d0d;
-    padding: 0.7rem 1.4rem; border-radius: 10px;
-    font-size: 0.83rem; font-weight: 500; letter-spacing: 0.03em;
-    opacity: 0; transition: all 0.3s; z-index: 200; pointer-events: none;
-  }
-  #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
-
-  /* ── RESPONSIVE ── */
-  @media (max-width: 500px) {
-    nav { padding: 1rem; }
-    .tab-btn { font-size: 0.7rem; padding: 0.45rem 0.65rem; }
-    .page { padding: 1.5rem 1rem; }
-    .quote-widget { padding: 2rem 1.5rem; }
-  }
-</style>
-</head>
-<body>
-
-<!-- NAV -->
-<nav>
-  <div class="logo">Daily<span>Mind</span></div>
-  <div class="nav-tabs">
-    <button class="tab-btn active" onclick="showPage('home')">Home</button>
-    <button class="tab-btn" onclick="showPage('myquotes')">My Quotes</button>
-    <button class="tab-btn" onclick="showPage('gita')">Gita</button>
-    <button class="tab-btn" onclick="showPage('settings')">Settings</button>
-  </div>
-</nav>
-
-<!-- ═══════════ HOME PAGE ═══════════ -->
-<div id="page-home" class="page active">
-  <div class="widget-wrap">
-    <div class="quote-widget" id="quoteWidget">
-      <span class="quote-source-tag" id="quoteSourceTag">System</span>
-      <p class="quote-text" id="quoteText">Loading your daily wisdom…</p>
-      <p class="quote-author" id="quoteAuthor">— DailyMind</p>
-    </div>
-  </div>
-
-  <div class="widget-controls">
-    <button class="btn btn-primary" onclick="nextQuote()">✦ Next Quote</button>
-    <button class="btn btn-ghost" onclick="shareQuote()">↗ Share</button>
-    <button class="btn btn-ghost" onclick="favouriteQuote()">♡ Save</button>
-  </div>
-
-  <p class="timer-strip">Auto-refreshing in <span id="timerDisplay">—</span></p>
-</div>
-
-<!-- ═══════════ MY QUOTES PAGE ═══════════ -->
-<div id="page-myquotes" class="page">
-  <h2 class="section-title">My Quotes</h2>
-  <p class="section-sub">Add quotes that inspire you personally.</p>
-
-  <div class="add-quote-form">
-    <div class="form-row">
-      <label for="newQuoteText">Quote</label>
-      <textarea id="newQuoteText" placeholder="Type or paste your favourite quote here…"></textarea>
-    </div>
-    <div class="form-row">
-      <label for="newQuoteAuthor">Author / Source</label>
-      <input type="text" id="newQuoteAuthor" placeholder="e.g. Marcus Aurelius" />
-    </div>
-    <button class="btn btn-primary" onclick="addUserQuote()" style="margin-top:0.5rem">+ Add Quote</button>
-  </div>
-
-  <div id="userQuotesList" class="quotes-list"></div>
-</div>
-
-<!-- ═══════════ GITA PAGE ═══════════ -->
-<div id="page-gita" class="page">
-  <h2 class="section-title">Bhagavad Gita</h2>
-  <p class="section-sub">30 timeless verses. Click "Show on Widget" to display any on your home screen.</p>
-
-  <div class="search-bar">
-    <input type="text" id="gitaSearch" placeholder="Search verses…" oninput="filterGita()" />
-  </div>
-  <div id="gitaList" class="gita-grid"></div>
-</div>
-
-<!-- ═══════════ SETTINGS PAGE ═══════════ -->
-<div id="page-settings" class="page">
-  <h2 class="section-title">Settings</h2>
-  <p class="section-sub">Customise your widget and quote sources.</p>
-
-  <!-- Sources -->
-  <div class="settings-group">
-    <h3>Quote Sources</h3>
-    <div class="setting-row">
-      <div class="setting-label">My Quotes<small>Quotes you added yourself</small></div>
-      <label class="toggle"><input type="checkbox" id="srcUser" checked onchange="saveSettings()"><span class="toggle-slider"></span></label>
-    </div>
-    <div class="setting-row">
-      <div class="setting-label">Bhagavad Gita<small>30 curated verses</small></div>
-      <label class="toggle"><input type="checkbox" id="srcGita" checked onchange="saveSettings()"><span class="toggle-slider"></span></label>
-    </div>
-    <div class="setting-row">
-      <div class="setting-label">System Quotes<small>Built-in inspirational quotes</small></div>
-      <label class="toggle"><input type="checkbox" id="srcSystem" checked onchange="saveSettings()"><span class="toggle-slider"></span></label>
-    </div>
-  </div>
-
-  <!-- Refresh -->
-  <div class="settings-group">
-    <h3>Refresh Frequency</h3>
-    <div class="setting-row">
-      <div class="setting-label">Change quote every<small id="freqLabel">60 minutes</small></div>
-      <input type="range" id="freqSlider" min="5" max="360" step="5" value="60"
-             oninput="updateFreqLabel()" onchange="saveSettings()" />
-    </div>
-  </div>
-
-  <!-- Widget Appearance -->
-  <div class="settings-group">
-    <h3>Widget Appearance</h3>
-    <div class="setting-row">
-      <div class="setting-label">Background Colour</div>
-      <input type="color" id="widgetColor" value="#1e1e1e" oninput="applyWidgetStyles()" onchange="saveSettings()" />
-    </div>
-    <div class="setting-row">
-      <div class="setting-label">Text Colour</div>
-      <input type="color" id="textColor" value="#e8e0d0" oninput="applyWidgetStyles()" onchange="saveSettings()" />
-    </div>
-    <div class="setting-row">
-      <div class="setting-label">Corner Shape</div>
-      <select id="shapeSelect" onchange="applyWidgetStyles(); saveSettings()">
-        <option value="20px">Rounded</option>
-        <option value="8px">Slightly Rounded</option>
-        <option value="0px">Square</option>
-        <option value="50px">Pill</option>
-      </select>
-    </div>
-  </div>
-
-  <!-- Font -->
-  <div class="settings-group">
-    <h3>Font Settings</h3>
-    <div class="setting-row">
-      <div class="setting-label">Font Style</div>
-      <select id="fontSelect" onchange="applyWidgetStyles(); saveSettings()">
-        <option value="'Cormorant Garamond', serif">Cormorant (Elegant)</option>
-        <option value="Georgia, serif">Georgia (Classic)</option>
-        <option value="'Palatino Linotype', serif">Palatino (Literary)</option>
-        <option value="'DM Sans', sans-serif">DM Sans (Modern)</option>
-        <option value="'Courier New', monospace">Courier (Typewriter)</option>
-      </select>
-    </div>
-    <div class="setting-row">
-      <div class="setting-label">Font Size<small id="fontSizeLabel">1.6 rem</small></div>
-      <input type="range" id="fontSizeSlider" min="1" max="2.5" step="0.1" value="1.6"
-             oninput="applyWidgetStyles()" onchange="saveSettings()" />
-    </div>
-  </div>
-
-  <button class="btn btn-primary" onclick="saveSettings(); toast('Settings saved!')">✓ Save Settings</button>
-</div>
-
-<!-- TOAST -->
-<div id="toast"></div>
-
-<script>
-/* ═══════════════════════════════════════════════
-   DATA
-═══════════════════════════════════════════════ */
 const SYSTEM_QUOTES = [
   { text: "The only way to do great work is to love what you do.", author: "Steve Jobs" },
   { text: "In the middle of difficulty lies opportunity.", author: "Albert Einstein" },
@@ -466,324 +32,393 @@ const SYSTEM_QUOTES = [
 ];
 
 const GITA_QUOTES = [
-  { text: "You have the right to perform your actions, but you are not entitled to the fruits of your actions.", ref: "BG 2.47" },
-  { text: "The soul is never born nor dies at any time. It has not come into being, does not come into being, and will not come into being.", ref: "BG 2.20" },
-  { text: "A man is made by his belief. As he believes, so he becomes.", ref: "BG 17.3" },
-  { text: "For one who has conquered the mind, the mind is the best of friends; for one who has failed to do so, the mind remains the greatest enemy.", ref: "BG 6.6" },
-  { text: "Whatever happened, happened for the good. Whatever is happening, is happening for the good. Whatever will happen, will also happen for the good.", ref: "BG 2.14" },
-  { text: "Reshape yourself through the power of your will; never let yourself be degraded by self-will.", ref: "BG 6.5" },
-  { text: "When meditation is mastered, the mind is unwavering like the flame of a lamp in a windless place.", ref: "BG 6.19" },
-  { text: "The power of God is with you at all times; through the activities of mind, senses, breathing, and emotions.", ref: "BG 18.61" },
-  { text: "Those who eat too much or eat too little, who sleep too much or sleep too little, will not succeed in meditation.", ref: "BG 6.16" },
-  { text: "Perform your obligatory duty, because action is indeed better than inaction.", ref: "BG 3.8" },
-  { text: "The wise see knowledge and action as one; they see truly.", ref: "BG 5.4" },
-  { text: "Hell has three gates: lust, anger, and greed.", ref: "BG 16.21" },
-  { text: "To the illumined man or woman, a clod of dirt, a stone, and gold are the same.", ref: "BG 6.8" },
-  { text: "Change is the law of the universe. You can be a millionaire, or a pauper in an instant.", ref: "BG 2.22" },
-  { text: "As the kindled fire reduces wood to ashes, the fire of Self-knowledge reduces all Karma to ashes.", ref: "BG 4.37" },
-  { text: "A gift is pure when it is given from the heart to the right person at the right time and at the right place, and when we expect nothing in return.", ref: "BG 17.20" },
-  { text: "No one who does good work will ever come to a bad end, either here or in the world to come.", ref: "BG 6.40" },
-  { text: "Calmness, gentleness, silence, self-restraint, and purity: these are the disciplines of the mind.", ref: "BG 17.16" },
-  { text: "The ignorant work for their own profit; the wise work for the welfare of the world, without thought for themselves.", ref: "BG 3.25" },
-  { text: "They live in wisdom who see themselves in all and all in them.", ref: "BG 6.29" },
-  { text: "One who sees inaction in action, and action in inaction, is intelligent among men.", ref: "BG 4.18" },
-  { text: "There is neither this world nor the world beyond nor happiness for the one who doubts.", ref: "BG 4.40" },
-  { text: "When a person responds to the joys and sorrows of others as if they were his own, he has attained the highest state of spiritual union.", ref: "BG 6.32" },
-  { text: "The peace of God is with those who are content, free from desire, and living in harmony.", ref: "BG 2.71" },
-  { text: "Those who are free from anger and all material desires, who are self-realized and self-disciplined, are assured of liberation.", ref: "BG 5.26" },
-  { text: "The mind is restless and difficult to restrain, but it is subdued by practice.", ref: "BG 6.35" },
-  { text: "As a lamp does not flicker in a windless place, so the yogi who is in control of their mind.", ref: "BG 6.19" },
-  { text: "Better is one's own dharma, though imperfectly performed, than the dharma of another well performed.", ref: "BG 3.35" },
-  { text: "Set thy heart upon thy work, but never on its reward.", ref: "BG 2.47" },
-  { text: "From anger comes delusion; from delusion, loss of memory; from loss of memory, the destruction of discrimination; from the destruction of discrimination one loses one's goal.", ref: "BG 2.63" },
-  { text: "You are what you beleive in. You become that which you beleive you can become ", ref: "BG 17.3" },
-  ];
+  { text: "You have the right to perform your actions, but you are not entitled to the fruits of your actions.", ref: "Bhagavad Gita 2.47" },
+  { text: "The soul is never born nor dies at any time. It has not come into being, does not come into being, and will not come into being.", ref: "Bhagavad Gita 2.20" },
+  { text: "A man is made by his belief. As he believes, so he becomes.", ref: "Bhagavad Gita 17.3" },
+  { text: "For one who has conquered the mind, the mind is the best of friends; for one who has failed to do so, the mind remains the greatest enemy.", ref: "Bhagavad Gita 6.6" },
+  { text: "Whatever happened, happened for the good. Whatever is happening, is happening for the good. Whatever will happen, will also happen for the good.", ref: "Bhagavad Gita 2.14" },
+  { text: "Reshape yourself through the power of your will; never let yourself be degraded by self-will.", ref: "Bhagavad Gita 6.5" },
+  { text: "When meditation is mastered, the mind is unwavering like the flame of a lamp in a windless place.", ref: "Bhagavad Gita 6.19" },
+  { text: "The power of God is with you at all times; through the activities of mind, senses, breathing, and emotions.", ref: "Bhagavad Gita 18.61" },
+  { text: "Those who eat too much or eat too little, who sleep too much or sleep too little, will not succeed in meditation.", ref: "Bhagavad Gita 6.16" },
+  { text: "Perform your obligatory duty, because action is indeed better than inaction.", ref: "Bhagavad Gita 3.8" },
+  { text: "The wise see knowledge and action as one; they see truly.", ref: "Bhagavad Gita 5.4" },
+  { text: "Hell has three gates: lust, anger, and greed.", ref: "Bhagavad Gita 16.21" },
+  { text: "To the illumined man or woman, a clod of dirt, a stone, and gold are the same.", ref: "Bhagavad Gita 6.8" },
+  { text: "Change is the law of the universe. You can be a millionaire, or a pauper in an instant.", ref: "Bhagavad Gita 2.22" },
+  { text: "As the kindled fire reduces wood to ashes, the fire of Self-knowledge reduces all Karma to ashes.", ref: "Bhagavad Gita 4.37" },
+  { text: "A gift is pure when it is given from the heart to the right person at the right time and at the right place, and when we expect nothing in return.", ref: "Bhagavad Gita 17.20" },
+  { text: "No one who does good work will ever come to a bad end, either here or in the world to come.", ref: "Bhagavad Gita 6.40" },
+  { text: "Calmness, gentleness, silence, self-restraint, and purity: these are the disciplines of the mind.", ref: "Bhagavad Gita 17.16" },
+  { text: "The ignorant work for their own profit; the wise work for the welfare of the world, without thought for themselves.", ref: "Bhagavad Gita 3.25" },
+  { text: "They live in wisdom who see themselves in all and all in them.", ref: "Bhagavad Gita 6.29" },
+  { text: "One who sees inaction in action, and action in inaction, is intelligent among men.", ref: "Bhagavad Gita 4.18" },
+  { text: "There is neither this world nor the world beyond nor happiness for the one who doubts.", ref: "Bhagavad Gita 4.40" },
+  { text: "When a person responds to the joys and sorrows of others as if they were his own, he has attained the highest state of spiritual union.", ref: "Bhagavad Gita 6.32" },
+  { text: "The peace of God is with those who are content, free from desire, and living in harmony.", ref: "Bhagavad Gita 2.71" },
+  { text: "Those who are free from anger and all material desires, who are self-realized and self-disciplined, are assured of liberation.", ref: "Bhagavad Gita 5.26" },
+  { text: "The mind is restless and difficult to restrain, but it is subdued by practice.", ref: "Bhagavad Gita 6.35" },
+  { text: "As a lamp does not flicker in a windless place, so the yogi who is in control of their mind.", ref: "Bhagavad Gita 6.19" },
+  { text: "Better is one's own dharma, though imperfectly performed, than the dharma of another well performed.", ref: "Bhagavad Gita 3.35" },
+  { text: "Set thy heart upon thy work, but never on its reward.", ref: "Bhagavad Gita 2.47" },
+  { text: "From anger comes delusion; from delusion, loss of memory; from loss of memory, the destruction of discrimination; from the destruction of discrimination one loses one's goal.", ref: "Bhagavad Gita 2.63" },
+];
 
-/* ═══════════════════════════════════════════════
-   STATE  (loaded from localStorage)
-═══════════════════════════════════════════════ */
-let settings = {
-  freqMinutes: 60,
-  widgetBg: '#1e1e1e',
-  textColor: '#e8e0d0',
-  cornerRadius: '20px',
-  fontFamily: "'Cormorant Garamond', serif",
-  fontSize: 1.6,
-  srcUser: true,
-  srcGita: true,
-  srcSystem: true,
-};
-let userQuotes = [];        // [{text, author}]
-let currentQuoteIndex = 0;
-let allQuotes = [];         // merged pool
-let timerInterval = null;
-let countdown = 0;
-
-/* ═══════════════════════════════════════════════
-   INIT
-═══════════════════════════════════════════════ */
-function init() {
-  loadFromStorage();
-  applySettingsToUI();
-  applyWidgetStyles();
-  renderUserQuotes();
-  renderGita();
-  buildQuotePool();
-  showRandomQuote();
-  startTimer();
+// Combine all quotes into one pool
+function getAllQuotes() {
+  const allQuotes = [];
+  SYSTEM_QUOTES.forEach(q => allQuotes.push({ text: q.text, author: q.author }));
+  GITA_QUOTES.forEach(q => allQuotes.push({ text: q.text, author: q.ref }));
+  return allQuotes;
 }
 
-/* ═══════════════════════════════════════════════
-   STORAGE
-═══════════════════════════════════════════════ */
-function loadFromStorage() {
-  try {
-    const s = localStorage.getItem('dm_settings');
-    if (s) settings = { ...settings, ...JSON.parse(s) };
-    const q = localStorage.getItem('dm_userquotes');
-    if (q) userQuotes = JSON.parse(q);
-  } catch(e) {}
-}
-function saveSettings() {
-  settings.freqMinutes  = +document.getElementById('freqSlider').value;
-  settings.widgetBg     = document.getElementById('widgetColor').value;
-  settings.textColor    = document.getElementById('textColor').value;
-  settings.cornerRadius = document.getElementById('shapeSelect').value;
-  settings.fontFamily   = document.getElementById('fontSelect').value;
-  settings.fontSize     = +document.getElementById('fontSizeSlider').value;
-  settings.srcUser      = document.getElementById('srcUser').checked;
-  settings.srcGita      = document.getElementById('srcGita').checked;
-  settings.srcSystem    = document.getElementById('srcSystem').checked;
-  localStorage.setItem('dm_settings', JSON.stringify(settings));
-  buildQuotePool();
-  restartTimer();
-  applyWidgetStyles();
-}
-function saveUserQuotes() {
-  localStorage.setItem('dm_userquotes', JSON.stringify(userQuotes));
+// Get a random quote
+function getRandomQuote() {
+  const quotes = getAllQuotes();
+  return quotes[Math.floor(Math.random() * quotes.length)];
 }
 
-/* ═══════════════════════════════════════════════
-   APPLY SETTINGS TO UI CONTROLS
-═══════════════════════════════════════════════ */
-function applySettingsToUI() {
-  document.getElementById('freqSlider').value       = settings.freqMinutes;
-  document.getElementById('widgetColor').value      = settings.widgetBg;
-  document.getElementById('textColor').value        = settings.textColor;
-  document.getElementById('shapeSelect').value      = settings.cornerRadius;
-  document.getElementById('fontSizeSlider').value   = settings.fontSize;
-  document.getElementById('srcUser').checked        = settings.srcUser;
-  document.getElementById('srcGita').checked        = settings.srcGita;
-  document.getElementById('srcSystem').checked      = settings.srcSystem;
-  // font dropdown
-  const fs = document.getElementById('fontSelect');
-  for (let o of fs.options) { if (o.value === settings.fontFamily) { o.selected = true; break; } }
-  updateFreqLabel();
-  updateFontSizeLabel();
+// ═══════════════════════════════════════════════════════════════
+// EMAIL SENDING FUNCTIONS
+// ═══════════════════════════════════════════════════════════════
+
+function parseTimezoneOffset(tzString) {
+  // Parses timezone like "UTC+5.5" or "UTC-8" and returns offset in hours
+  if (!tzString) return 0;
+  
+  const match = tzString.toString().match(/UTC([+-]?\d+\.?\d*)/i);
+  if (!match) return 0;
+  
+  return parseFloat(match[1]);
 }
 
-function updateFreqLabel() {
-  const v = +document.getElementById('freqSlider').value;
-  document.getElementById('freqLabel').textContent =
-    v < 60 ? `${v} minutes` : v === 60 ? '1 hour' : `${(v/60).toFixed(1)} hours`;
-}
-function updateFontSizeLabel() {
-  document.getElementById('fontSizeLabel').textContent =
-    document.getElementById('fontSizeSlider').value + ' rem';
-}
-
-/* ═══════════════════════════════════════════════
-   WIDGET LIVE STYLING
-═══════════════════════════════════════════════ */
-function applyWidgetStyles() {
-  const bg  = document.getElementById('widgetColor').value;
-  const tc  = document.getElementById('textColor').value;
-  const r   = document.getElementById('shapeSelect').value;
-  const ff  = document.getElementById('fontSelect').value;
-  const fsz = document.getElementById('fontSizeSlider').value;
-  const root = document.documentElement;
-  root.style.setProperty('--widget-bg',      bg);
-  root.style.setProperty('--widget-color',   tc);
-  root.style.setProperty('--widget-radius',  r);
-  root.style.setProperty('--widget-font-sz', fsz + 'rem');
-  document.getElementById('quoteText').style.fontFamily = ff;
-  updateFontSizeLabel();
-}
-
-/* ═══════════════════════════════════════════════
-   QUOTE POOL
-═══════════════════════════════════════════════ */
-function buildQuotePool() {
-  allQuotes = [];
-  if (settings.srcUser && userQuotes.length)
-    userQuotes.forEach(q => allQuotes.push({ text: q.text, author: q.author, source: 'My Quote' }));
-  if (settings.srcGita)
-    GITA_QUOTES.forEach(q => allQuotes.push({ text: q.text, author: q.ref, source: 'Bhagavad Gita' }));
-  if (settings.srcSystem)
-    SYSTEM_QUOTES.forEach(q => allQuotes.push({ text: q.text, author: q.author, source: 'System' }));
-  if (!allQuotes.length)
-    allQuotes = [{ text: "Enable at least one quote source in Settings.", author: "DailyMind", source: "System" }];
-}
-
-function showRandomQuote() {
-  const q = allQuotes[Math.floor(Math.random() * allQuotes.length)];
-  const textEl   = document.getElementById('quoteText');
-  const authorEl = document.getElementById('quoteAuthor');
-  const tagEl    = document.getElementById('quoteSourceTag');
-  textEl.style.opacity = '0';
-  setTimeout(() => {
-    textEl.textContent   = '\u201C' + q.text + '\u201D';
-    authorEl.textContent = '— ' + q.author;
-    tagEl.textContent    = q.source;
-    textEl.style.opacity = '1';
-  }, 250);
-}
-
-function nextQuote() { showRandomQuote(); restartTimer(); }
-
-/* ═══════════════════════════════════════════════
-   AUTO-REFRESH TIMER
-═══════════════════════════════════════════════ */
-function startTimer() {
-  countdown = settings.freqMinutes * 60;
-  updateTimerDisplay();
-  timerInterval = setInterval(() => {
-    countdown--;
-    if (countdown <= 0) { showRandomQuote(); countdown = settings.freqMinutes * 60; }
-    updateTimerDisplay();
-  }, 1000);
-}
-function restartTimer() {
-  clearInterval(timerInterval);
-  startTimer();
-}
-function updateTimerDisplay() {
-  const m = Math.floor(countdown / 60);
-  const s = countdown % 60;
-  document.getElementById('timerDisplay').textContent =
-    m > 0 ? `${m}m ${String(s).padStart(2,'0')}s` : `${s}s`;
-}
-
-/* ═══════════════════════════════════════════════
-   USER QUOTES
-═══════════════════════════════════════════════ */
-function addUserQuote() {
-  const t = document.getElementById('newQuoteText').value.trim();
-  const a = document.getElementById('newQuoteAuthor').value.trim();
-  if (!t) { toast('Please enter a quote first.'); return; }
-  userQuotes.push({ text: t, author: a || 'Unknown' });
-  saveUserQuotes(); buildQuotePool(); renderUserQuotes();
-  document.getElementById('newQuoteText').value  = '';
-  document.getElementById('newQuoteAuthor').value = '';
-  toast('Quote added!');
-}
-
-function deleteUserQuote(i) {
-  userQuotes.splice(i, 1);
-  saveUserQuotes(); buildQuotePool(); renderUserQuotes();
-  toast('Quote removed.');
-}
-
-function renderUserQuotes() {
-  const el = document.getElementById('userQuotesList');
-  if (!userQuotes.length) {
-    el.innerHTML = `<div class="empty-state"><div class="big">✍️</div>No quotes yet. Add your first one above!</div>`;
-    return;
-  }
-  el.innerHTML = userQuotes.map((q, i) => `
+function sendQuoteEmail(recipientEmail, recipientName, quote, userHour) {
+  // Determine greeting based on user's local hour
+  const hour = userHour !== undefined ? userHour : new Date().getHours();
+  let greeting = "Good morning";
+  if (hour >= 12 && hour < 17) greeting = "Good afternoon";
+  else if (hour >= 17 && hour < 21) greeting = "Good evening";
+  else if (hour >= 21 || hour < 5) greeting = "Good night";
+  
+  const subject = "✨ Your Daily Quote from DailyMind";
+  
+  const htmlBody = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body { 
+      font-family: Georgia, serif; 
+      background-color: #0d0d0d; 
+      color: #e8e0d0; 
+      margin: 0; 
+      padding: 20px; 
+    }
+    .container {
+      max-width: 600px;
+      margin: 0 auto;
+      background: #0d0d0d;
+      padding: 40px 20px;
+    }
+    .logo {
+      font-family: 'Georgia', serif;
+      font-size: 28px;
+      font-weight: 600;
+      color: #c9a84c;
+      text-align: center;
+      margin-bottom: 10px;
+      letter-spacing: 0.05em;
+    }
+    .greeting {
+      text-align: center;
+      font-size: 14px;
+      color: #7a7268;
+      margin-bottom: 30px;
+      letter-spacing: 0.03em;
+    }
+    .quote-card {
+      background: linear-gradient(135deg, #d4b5c3 0%, #c5a5b8 100%);
+      border-radius: 20px;
+      padding: 40px 35px;
+      margin: 30px auto;
+      max-width: 520px;
+      box-shadow: 0 8px 30px rgba(0,0,0,0.4);
+      position: relative;
+    }
+    .source-tag {
+      position: absolute;
+      top: 15px;
+      right: 15px;
+      background: rgba(255,255,255,0.3);
+      padding: 4px 12px;
+      border-radius: 12px;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: #6b4f5e;
+      font-weight: 500;
+    }
+    .quote-text {
+      font-size: 22px;
+      font-style: italic;
+      line-height: 1.6;
+      color: #4a2e3d;
+      margin: 20px 0;
+      text-align: center;
+      font-weight: 400;
+    }
+    .quote-author {
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 0.15em;
+      color: #8a6e2f;
+      text-align: center;
+      margin-top: 25px;
+      font-weight: 500;
+    }
+    .footer {
+      text-align: center;
+      margin-top: 40px;
+      padding-top: 20px;
+      border-top: 1px solid #2a2a2a;
+      font-size: 12px;
+      color: #7a7268;
+    }
+    .footer a {
+      color: #c9a84c;
+      text-decoration: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="logo">DailyMind</div>
+    <div class="greeting">${greeting}, ${recipientName || 'Friend'}!</div>
+    
     <div class="quote-card">
-      <div class="quote-card-body">
-        <div class="quote-card-text">"${q.text}"</div>
-        <div class="quote-card-author">— ${q.author}</div>
-      </div>
-      <div class="quote-card-actions">
-        <button class="icon-btn" title="Delete" onclick="deleteUserQuote(${i})">✕</button>
-      </div>
-    </div>`).join('');
-}
-
-/* ═══════════════════════════════════════════════
-   GITA PAGE
-═══════════════════════════════════════════════ */
-function renderGita(filter='') {
-  const el = document.getElementById('gitaList');
-  const list = filter
-    ? GITA_QUOTES.filter(q => q.text.toLowerCase().includes(filter.toLowerCase()))
-    : GITA_QUOTES;
-  if (!list.length) { el.innerHTML = `<div class="empty-state">No verses match your search.</div>`; return; }
-  el.innerHTML = list.map((q, i) => `
-    <div class="gita-card">
-      <div class="gita-card-text">"${q.text}"</div>
-      <div class="gita-card-meta">
-        <span class="gita-card-ref">${q.ref}</span>
-        <button class="use-btn" onclick="showGitaQuote(${i})">Show on Widget</button>
-      </div>
-    </div>`).join('');
-}
-
-function filterGita() {
-  renderGita(document.getElementById('gitaSearch').value);
-}
-
-function showGitaQuote(i) {
-  const q = GITA_QUOTES[i];
-  document.getElementById('quoteText').textContent    = '\u201C' + q.text + '\u201D';
-  document.getElementById('quoteAuthor').textContent  = '— ' + q.ref;
-  document.getElementById('quoteSourceTag').textContent = 'Bhagavad Gita';
-  showPage('home');
-  toast('Quote displayed on Home!');
-}
-
-/* ═══════════════════════════════════════════════
-   SHARE & FAVOURITE
-═══════════════════════════════════════════════ */
-function shareQuote() {
-  const text = document.getElementById('quoteText').textContent;
-  const author = document.getElementById('quoteAuthor').textContent;
-  if (navigator.share) {
-    navigator.share({ title: 'DailyMind', text: text + ' ' + author });
-  } else {
-    navigator.clipboard.writeText(text + ' ' + author).then(() => toast('Quote copied to clipboard!'));
-  }
-}
-
-function favouriteQuote() {
-  const t = document.getElementById('quoteText').textContent.replace(/[""]/g, '');
-  const a = document.getElementById('quoteAuthor').textContent.replace('— ', '');
-  if (userQuotes.some(q => q.text === t)) { toast('Already in My Quotes!'); return; }
-  userQuotes.push({ text: t, author: a });
-  saveUserQuotes(); buildQuotePool(); renderUserQuotes();
-  toast('Saved to My Quotes ♡');
-}
-
-/* ═══════════════════════════════════════════════
-   NAVIGATION
-═══════════════════════════════════════════════ */
-function showPage(name) {
-  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-  document.getElementById('page-' + name).classList.add('active');
-  const idx = { home:0, myquotes:1, gita:2, settings:3 }[name];
-  document.querySelectorAll('.tab-btn')[idx].classList.add('active');
-  window.scrollTo({ top: 0, behavior: 'smooth' });
-}
-
-/* ═══════════════════════════════════════════════
-   TOAST NOTIFICATION
-═══════════════════════════════════════════════ */
-let toastTimeout;
-function toast(msg) {
-  const el = document.getElementById('toast');
-  el.textContent = msg;
-  el.classList.add('show');
-  clearTimeout(toastTimeout);
-  toastTimeout = setTimeout(() => el.classList.remove('show'), 2500);
-}
-
-/* ═══════════════════════════════════════════════
-   BOOT
-═══════════════════════════════════════════════ */
-document.addEventListener('DOMContentLoaded', init);
-</script>
+      <div class="source-tag">SYSTEM</div>
+      <div class="quote-text">"${quote.text}"</div>
+      <div class="quote-author">— ${quote.author}</div>
+    </div>
+    
+    <div class="footer">
+      <p>This is your daily inspiration from DailyMind.</p>
+      <p style="margin-top:10px; font-size:11px;">
+        Want to explore more? <a href="https://suprajarajgopal.github.io/-dailyquotes/">Visit the app</a>
+      </p>
+    </div>
+  </div>
 </body>
 </html>
+  `;
+
+  const plainBody = `
+DailyMind - Your Daily Quote
+
+${greeting}, ${recipientName || 'Friend'},
+
+"${quote.text}"
+
+— ${quote.author}
+
+---
+This is your daily inspiration from DailyMind.
+Visit: https://suprajarajgopal.github.io/-dailyquotes/
+  `;
+
+  try {
+    MailApp.sendEmail({
+      to: recipientEmail,
+      subject: subject,
+      body: plainBody,
+      htmlBody: htmlBody
+    });
+    Logger.log(`✓ Email sent to ${recipientEmail}`);
+    return true;
+  } catch (error) {
+    Logger.log(`✗ Failed to send email to ${recipientEmail}: ${error}`);
+    return false;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// MAIN SENDING FUNCTION (Called by triggers)
+// ═══════════════════════════════════════════════════════════════
+
+function sendScheduledQuotes() {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(FORM_RESPONSES_SHEET_NAME);
+  
+  if (!sheet) {
+    Logger.log("ERROR: Could not find form responses sheet!");
+    return;
+  }
+  
+  const data = sheet.getDataRange().getValues();
+  const headers = data[0];
+  
+  // Find column indices (adjust if your form has different column names)
+  const nameCol = headers.indexOf("Name");
+  const emailCol = headers.indexOf("Email");
+  const timezoneCol = headers.indexOf("Timezone Offset");
+  const startTimeCol = headers.indexOf("Start Time");
+  const endTimeCol = headers.indexOf("End time");
+  const frequencyCol = headers.indexOf("How often do you want the quotes");
+  
+  if (emailCol === -1 || startTimeCol === -1 || frequencyCol === -1) {
+    Logger.log("ERROR: Could not find required columns");
+    return;
+  }
+  
+  // Get current UTC hour
+  const now = new Date();
+  const utcHour = now.getUTCHours();
+  
+  Logger.log(`Running at UTC ${utcHour}:00`);
+  
+  let sentCount = 0;
+  
+  // Loop through responses (skip header row)
+  for (let i = 1; i < data.length; i++) {
+    const row = data[i];
+    const name = nameCol >= 0 ? row[nameCol] : "";
+    const email = row[emailCol];
+    const timezoneOffset = timezoneCol >= 0 ? parseTimezoneOffset(row[timezoneCol]) : 0;
+    const startTime = row[startTimeCol];
+    const endTime = endTimeCol >= 0 ? row[endTimeCol] : null;
+    const frequency = row[frequencyCol];
+    
+    if (!email) continue; // Skip if no email
+    
+    // Convert UTC hour to user's local hour
+    const userLocalHour = (utcHour + timezoneOffset + 24) % 24;
+    
+    Logger.log(`Checking ${email}: Timezone offset=${timezoneOffset}, User local hour=${userLocalHour}, Start=${startTime}, End=${endTime}, Freq=${frequency}`);
+    
+    // Parse times
+    const startHour = parseTimeToHour(startTime);
+    const endHour = endTime ? parseTimeToHour(endTime) : startHour;
+    
+    Logger.log(`  Parsed: startHour=${startHour}, endHour=${endHour}, userLocalHour=${userLocalHour}`);
+    
+    // Check if it's time to send based on frequency (using user's local hour)
+    const shouldSend = checkIfShouldSendByFrequency(userLocalHour, startHour, endHour, frequency);
+    
+    Logger.log(`  Should send? ${shouldSend}`);
+    
+    if (shouldSend) {
+      const quote = getRandomQuote();
+      const success = sendQuoteEmail(email, name, quote, userLocalHour);
+      if (success) sentCount++;
+    }
+  }
+  
+  Logger.log(`✓ Sent ${sentCount} emails`);
+}
+    
+    if (shouldSend) {
+      const quote = getRandomQuote();
+      const success = sendQuoteEmail(email, name, quote);
+      if (success) sentCount++;
+    }
+  }
+  
+  Logger.log(`✓ Sent ${sentCount} emails`);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// HELPER FUNCTIONS
+// ═══════════════════════════════════════════════════════════════
+
+function parseTimeToHour(timeString) {
+  // Handles formats like "6:00 AM", "8:00 AM", "12:00 PM", "12 p.m", "6 a.m", etc.
+  if (!timeString) return 8; // Default to 8 AM
+  
+  // Clean up the string: remove extra spaces, dots, make uppercase
+  const cleaned = timeString.toString().trim().toUpperCase().replace(/\./g, '');
+  
+  // Match patterns like "12 PM", "6 AM", "10:00 AM", etc.
+  const match = cleaned.match(/(\d+):?\d*\s*(AM|PM|A\s*M|P\s*M)/i);
+  if (!match) return 8;
+  
+  let hour = parseInt(match[1]);
+  const meridiem = match[2].replace(/\s/g, ''); // Remove any spaces
+  const isPM = meridiem.toUpperCase().includes('P');
+  
+  if (isPM && hour !== 12) hour += 12;
+  if (!isPM && hour === 12) hour = 0;
+  
+  return hour;
+}
+
+function checkIfShouldSendByFrequency(currentHour, startHour, endHour, frequency) {
+  // Parse the frequency option
+  // All options now use both start and end time
+  
+  if (frequency === "Once a day (at start time only)") {
+    // Send only at start hour
+    return currentHour === startHour;
+  }
+  
+  if (frequency === "Twice a day (at start & end time)") {
+    // Send at start hour and end hour
+    return currentHour === startHour || currentHour === endHour;
+  }
+  
+  if (frequency === "Three times a day (evenly spaced)") {
+    // Calculate middle time between start and end
+    let totalHours;
+    if (endHour >= startHour) {
+      totalHours = endHour - startHour;
+    } else {
+      totalHours = (24 - startHour) + endHour;
+    }
+    
+    const interval = Math.floor(totalHours / 2);
+    const middleTime = (startHour + interval) % 24;
+    
+    return currentHour === startHour || currentHour === middleTime || currentHour === endHour;
+  }
+  
+  if (frequency === "Every hour (between start & end time)") {
+    // Send every hour between start and end time (inclusive)
+    if (endHour >= startHour) {
+      return currentHour >= startHour && currentHour <= endHour;
+    } else {
+      // Wraps around midnight (e.g., 8 PM to 6 AM)
+      return currentHour >= startHour || currentHour <= endHour;
+    }
+  }
+  
+  // Default: once a day at start hour
+  return currentHour === startHour;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// SETUP FUNCTION - Run this once to create triggers
+// ═══════════════════════════════════════════════════════════════
+
+function setupHourlyTrigger() {
+  // Delete existing triggers first
+  const triggers = ScriptApp.getProjectTriggers();
+  triggers.forEach(trigger => ScriptApp.deleteTrigger(trigger));
+  
+  // Create new hourly trigger (runs every hour)
+  ScriptApp.newTrigger('sendScheduledQuotes')
+    .timeBased()
+    .everyHours(1)
+    .create();
+  
+  Logger.log("✓ Hourly trigger created! Emails will be sent automatically.");
+}
+
+// ═══════════════════════════════════════════════════════════════
+// TEST FUNCTION - Send a test email to yourself
+// ═══════════════════════════════════════════════════════════════
+
+function sendTestEmail() {
+  const quote = getRandomQuote();
+  sendQuoteEmail(YOUR_EMAIL, "Test User", quote);
+  Logger.log("✓ Test email sent to " + YOUR_EMAIL);
+}
